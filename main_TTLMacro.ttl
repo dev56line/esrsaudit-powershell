@@ -1,0 +1,81 @@
+;; TeraTerm Version 4.97
+;; ESRSVE Version 3.22.00.06
+
+;===== Retrive parameters from cmdargs =====
+;; Setting timeout for waiting
+timeout=30
+
+;; param1 = main_TTLMacro.ttl
+HOSTNAME = param2
+ESRSVEUSER = param3
+VESVCUSER = param4
+REMOTE_PROMPT = param5
+WORKDIR = param6
+LOGFILE = param7
+PASSWD = param8
+INI_FILE = param9
+
+;=====  Fixed parameters =====
+VEDIR = '/opt/esrsve/utilities/commandlineutil'
+VESCRIPT = './ESRS-VE-CLI-Util.sh'
+
+sprintf2 VECMD1 'cd %s' VEDIR
+sprintf2 VECMD2 '%s %s' VESCRIPT '--agent-status'
+sprintf2 VECMD3 '%s %s' VESCRIPT '--service-status'
+
+REMOTE_PROMPT_AF = REMOTE_PROMPT
+  strreplace REMOTE_PROMPT_AF 1 '~' VEDIR
+
+;; retrieve password from password.dat and set parameters
+getpassword PASSWD 'esrspasswd' ESRSPASSWD
+getpassword PASSWD 'esrssvcpasswd' ESRSSVCPASSWD
+
+;===== Connection Establish ======
+sprintf2 msg '%s:22 /ssh /2 /nosecuritywarning /auth=challenge /user=%s /passwd=%s /f=%s' HOSTNAME ESRSVEUSER ESRSPASSWD INI_FILE
+connect msg
+if result <> 2 then
+    end
+endif
+  wait REMOTE_PROMPT
+
+;===== Logging Start =====
+makepath LOGPATH WORKDIR LOGFILE
+logopen LOGPATH 0 0 0 1
+
+;===== Pre-Operation on ESRS-VE ====
+sendln ''
+  wait REMOTE_PROMPT
+;;; Print Start time
+sendln 'date'
+  wait REMOTE_PROMPT
+;;; Check hosts
+sendln 'uname -a'
+  wait REMOTE_PROMPT
+;;; Change operational directory
+sendln VECMD1
+  wait REMOTE_PROMPT_AF
+
+;===== Run Main Task: Check Agent Status ====
+sendln VECMD2
+  wait "Enter User Name:"
+sendln VESVCUSER
+  wait "Enter Password:"
+sendln ESRSSVCPASSWD
+  wait REMOTE_PROMPT_AF
+
+;===== Run Main Task: Check Service Status ====
+sendln VECMD3
+  wait "Enter User Name:"
+sendln VESVCUSER
+  wait "Enter Password:"
+sendln ESRSSVCPASSWD
+  wait REMOTE_PROMPT_AF
+
+;===== Pre-Operation on ESRS-VE ====
+;;; Print End time
+sendln 'date'
+  wait REMOTE_PROMPT_AF
+;;; logout from ESRS-VE
+sendln 'exit'
+;;; Logging Close
+logclose

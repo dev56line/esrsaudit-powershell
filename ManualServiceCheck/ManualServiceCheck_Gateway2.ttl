@@ -1,0 +1,135 @@
+;; TeraTerm Version 4.97
+;; ESRSVE Version 3.22.00.06
+;; Initial scripted by H.Wakabayashi
+
+
+;////////////////////// Setting variables :: Users should change this parameters for each environment
+;; Specify working directory
+WORKDIR = 'C:\<path_to_workingdir>'
+
+;; Configuration File for TeraTarm
+INI_FILE = 'TTLconfig_for_ManualServiceCheck.ini'
+  makepath INI_PATH WORKDIR INI_FILE
+
+;; Set the target information
+HOSTNAME = '<ESRSVE_Secondary_IP>'
+REMOTE_PROMPT = '<ESRSVE_Secondary_hostname>:~ #'
+
+;; Password file for each host
+PASSWD_FILE = 'ESRS_Gateway2_password.dat'
+
+;; Log File name
+LOGFILE = 'ESRS_Gateway2_manual_ope.log'
+
+;; Login Credentials
+ESRSVEUSER = 'root'
+VESVCUSER = 'admin'
+
+
+
+;////////////////////// Pre Required Task
+;===== +++++ Modify String arguments +++++ ======
+;; Set the full-path for encripted password file location and retrieve password
+makepath PASSWD_PATH WORKDIR PASSWD_FILE
+getpassword PASSWD_PATH 'esrspasswd' ESRSPASSWD
+getpassword PASSWD_PATH 'esrssvcpasswd' ESRSSVCPASSWD
+
+;; Set the full-path for logging files
+makepath LOGPATH WORKDIR LOGFILE
+
+;; Generate command line executed on target hosts
+VEDIR = '/opt/esrsve/utilities/commandlineutil'
+VESCRIPT = './ESRS-VE-CLI-Util.sh'
+  sprintf2 VECMD1 'cd %s' VEDIR
+  sprintf2 VECMD2 '%s %s' VESCRIPT '--agent-status'
+  sprintf2 VECMD3 '%s %s' VESCRIPT '--service-status'
+
+;; Expected strings after login the hosts
+REMOTE_PROMPT_AF = REMOTE_PROMPT
+  strreplace REMOTE_PROMPT_AF 1 '~' VEDIR
+
+
+
+;////////////////////// Main Task
+;; wait before connection establishment
+pause 5
+
+;===== Connection Establish ======
+sprintf2 msg '%s:22 /ssh /2 /nosecuritywarning /auth=challenge /user=%s /passwd=%s /f=%s' HOSTNAME ESRSVEUSER ESRSPASSWD INI_PATH
+connect msg
+if result <> 2 then
+  messagebox 'NG : SSH Connection Failed.' 'Results'
+  end
+endif
+
+  wait REMOTE_PROMPT
+
+;===== Logging Start =====
+logopen LOGPATH 0 0 0 1
+
+;===== Pre-Operation on ESRS-VE ====
+sendln ''
+  wait REMOTE_PROMPT
+;;; Print Start time
+sendln 'date'
+  wait REMOTE_PROMPT
+;;; Check hosts
+sendln 'uname -a'
+  wait REMOTE_PROMPT
+;;; Change operational directory
+sendln VECMD1
+  wait REMOTE_PROMPT_AF
+
+;===== Check Agent Status ====
+sendln VECMD2
+  wait "Enter User Name:"
+sendln VESVCUSER
+  wait "Enter Password:"
+sendln ESRSSVCPASSWD
+  wait REMOTE_PROMPT_AF
+
+;===== Check Service Status ====
+sendln VECMD3
+  wait "Enter User Name:"
+sendln VESVCUSER
+  wait "Enter Password:"
+sendln ESRSSVCPASSWD
+  wait REMOTE_PROMPT_AF
+
+;===== Post-Operation on ESRS-VE ====
+;;; Print End time
+sendln 'date'
+  wait REMOTE_PROMPT_AF
+;;; logout from ESRS-VE
+sendln 'exit'
+;;; Logging Close
+logclose
+
+pause 5
+
+;===== OK/NG Checking with logfile =====
+;;; Open logfiles
+fileopen fhandle LOGPATH 0
+
+;;; Search String for Connecting status
+filestrseek fhandle 'Connected'
+
+if result=1 then
+
+   ;;; Search String for Service status
+   filestrseek fhandle 'Not Running'
+   if result=1 then
+      messagebox 'NG : Some service on ESRS-VE is not running.' 'ESRS Status'
+   else
+      messagebox 'OK : All services on ESRS-VE is running properly.' 'ESRS Status'
+   endif
+
+else
+
+   messagebox 'NG : Disconnected From ESRS Gateway.' 'ESRS Status'
+
+endif
+
+
+;; Close logfiles
+fileclose fhandle

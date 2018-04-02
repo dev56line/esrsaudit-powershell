@@ -1,0 +1,136 @@
+;; TeraTerm Version 4.97
+;; DataDomain Version 6.0.1.30
+
+timeout=20
+
+;===== Set parameters for DataDomain =====
+WORKDIR = 'C:\EMC\Script\DataDomainOps'
+INIFILE = 'TTL_Config_for_manual_ESRS_Change.ini'
+LOGFILE = 'FailBack_ESRS_ope.log'
+
+DD_PRIMARY = '10.62.129.104'
+DD_STANDBY = '10.62.129.xxx'
+
+DDUSER = 'sysadmin'
+REMOTE_PROMPT = 'sysadmin@dd2500-ddcs(active:0)#'
+
+GATEWAY1 = '10.62.130.167'
+GATEWAY2 = '10.62.130.168'
+
+SERVICELINK_USER = 'xxx@xxx.jp'
+PASSWD_FILE = 'DD_credentials.dat'
+
+;===== Pre-Requirements ====
+DDCMD1 = 'support connectemc config show'
+DDCMD2 = 'support connectemc device register'
+DDCMD3 = 'support connectemc test'
+
+;; Retrieve password from encripted dat file
+makepath PASSWD_PATH WORKDIR PASSWD_FILE
+getpassword PASSWD_PATH 'ddpass' DDPASS
+getpassword PASSWD_PATH 'svclinkpass' SVCLINKPASS
+
+;; Generate full path for TeraTerm configuration file
+makepath INIPATH WORKDIR INIFILE
+
+;; Generate full path for log directory
+makepath LOGPATH WORKDIR LOGFILE
+
+;; Generate Failback command from ESRS Gateway2 to ESRS Gateway1
+sprintf2 FAILBACKCMD '%s %s %s %s %s %s' DDCMD2 DD_PRIMARY 'esrs-gateway' GATEWAY1 'ha-peer' DD_STANDBY
+
+
+;===== Connection Establish ======
+sprintf2 msg '%s:22 /ssh /2 /nosecuritywarning /auth=challenge /user=%s /passwd=%s /f=%s' DD_PRIMARY DDUSER DDPASS INIPATH
+connect msg
+if result <> 2 then
+  messagebox 'NG : SSH Connection Failed.' 'Results'
+  end
+endif
+
+  wait REMOTE_PROMPT
+
+;===== Logging Start =====
+logopen LOGPATH 0 0 0 1
+
+;===== Pre-Operation on ESRS-VE ====
+sendln ''
+  wait REMOTE_PROMPT
+
+;;; Print Start time
+sendln 'system show date'
+  wait REMOTE_PROMPT
+
+;;; Check hosts
+sendln 'system show serialno'
+  wait REMOTE_PROMPT
+sendln 'system show modelno'
+  wait REMOTE_PROMPT
+sendln 'system show version'
+  wait REMOTE_PROMPT
+
+;;; Check Current hosts list
+sendln 'net hosts show'
+  wait REMOTE_PROMPT
+
+;;; Check Current ESRS Gateway
+sendln DDCMD1
+  wait REMOTE_PROMPT
+
+;===== Run Main Task: Change ESRS Gateway (Failback to ESRS Gateway1) ====
+sendln FAILBACKCMD
+  wait 'Enter Service Link username: '
+sendln SERVICELINK_USER
+  wait 'Enter Service Link password: '
+
+sendln SVCLINKPASS
+  wait 'Device registered to ESRS gateway.'
+
+
+;;; Check after Fail-back to ESRSGW1
+sendln DDCMD1
+  wait REMOTE_PROMPT
+
+;===== Run Main Task: Test to EMC Support ====
+pause 60
+
+sendln DDCMD3
+  wait 'Test message successfully sent through ConnectEMC.'
+
+;===== Pre-Operation on ESRS-VE ====
+;;; Print End time
+sendln 'system show date'
+  wait REMOTE_PROMPT
+pause 5
+;;; logout from ESRS-VE
+sendln 'exit'
+;;; Logging Close
+logclose
+
+
+;===== OK/NG Checking with logfile =====
+;;; Open logfiles
+fileopen fhandle LOGPATH 0
+
+;;; Search String for Failover
+filestrseek fhandle 'Device registered to ESRS gateway.'
+
+if result=1 then
+
+   ;;; Search String for TestCall
+   filestrseek fhandle 'Test message successfully sent through ConnectEMC.'
+   if result=1 then
+      messagebox 'OK : Failback macro successfully done' 'Result'
+   else
+      messagebox 'NG : TestCall after failback failed' 'Result'
+   endif
+
+else
+
+   messagebox 'NG : Failback to ESRS#1 failed' 'Result'
+
+endif
+
+
+;; Close logfiles
+fileclose fhandle
