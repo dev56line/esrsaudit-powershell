@@ -22,7 +22,7 @@ DataDomain : 6.0.1.30
   - Configuration Files
     - main_config.ini
     - main_ttlconfig.ini
-  - Password Files
+  - Password Files(if not exist, create with Teraterm pop-ups)
     - ESRS_Gateway1.dat
     - ESRS_Gateway2.dat
   - Batch files
@@ -37,7 +37,7 @@ DataDomain : 6.0.1.30
     - Failover_ESRS_Gateway.ttl
   - Configuration Files
     - TTL_Config_for_manual_ESRS_Change.ini
-  - Password Files
+  - Password Files(if not exist, create with Teraterm pop-ups)
     - DD_credentials.dat
 
 ##### Directory: C:\<path_to_workingdir>\ManualServiceCheck
@@ -46,6 +46,6 @@ DataDomain : 6.0.1.30
     - ManualServiceCheck_Gateway2.ttl
   - Configuration Files
     - TTLconfig_for_ManualServiceCheck.ini
-  - Password Files
+  - Password Files(if not exist, create with Teraterm pop-ups)
     - ESRS_Gateway1_password.dat
     - ESRS_Gateway2_password.dat
